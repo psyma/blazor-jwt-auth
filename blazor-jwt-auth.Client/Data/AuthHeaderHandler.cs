@@ -1,26 +1,19 @@
-using Blazored.LocalStorage;
-
 namespace blazor_jwt_auth.Client.Data;
 
 public class AuthHeaderHandler : DelegatingHandler
 {
-    private readonly ILocalStorageService _localStorage;
-
-    public AuthHeaderHandler(ILocalStorageService localStorage)
+    private readonly JwtAuthStateProvider _jwtAuthStateProvider;
+    public AuthHeaderHandler(JwtAuthStateProvider jwtAuthStateProvider)
     {
-        _localStorage = localStorage;
+        _jwtAuthStateProvider = jwtAuthStateProvider;
     }
 
-    protected override async Task<HttpResponseMessage> SendAsync(
-        HttpRequestMessage request,
-        CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) 
     {
-        var token = await _localStorage.GetItemAsync<string>("authToken");
-
+        var token = _jwtAuthStateProvider.GetToken();
         if (!string.IsNullOrWhiteSpace(token))
         {
-            request.Headers.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
 
         return await base.SendAsync(request, cancellationToken);

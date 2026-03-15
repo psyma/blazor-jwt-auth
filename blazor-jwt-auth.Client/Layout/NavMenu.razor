@@ -1,8 +1,11 @@
-﻿@using blazor_jwt_auth.Client.Service
+﻿@using blazor_jwt_auth.Client.Data
+@using blazor_jwt_auth.Client.Service
 @implements IDisposable
 
 @inject NavigationManager NavigationManager
 @inject IAuthService AuthService
+@inject JwtAuthStateProvider JwtAuthStateProvider
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -87,8 +90,10 @@
         NavigationManager.LocationChanged -= OnLocationChanged;
     }
 
-    public async Task Logout()
+    private async Task Logout()
     {
-        await AuthService.Logout();
+        var authState = await JwtAuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        await AuthService.Logout(user.Identity?.Name);
     }
 }

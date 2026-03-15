@@ -127,8 +127,15 @@ public class AuthController : Controller
     }
     
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout()
+    public async Task<IActionResult> Logout(string email)
     {
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user == null) return Unauthorized();
+        
+        user.RefreshToken = null;
+        user.RefreshTokenExpiryTime = null;
+        await _userManager.UpdateAsync(user);
+        
         return Ok();
     }
     
@@ -143,5 +150,12 @@ public class AuthController : Controller
         };
         
         return Ok(await Task.FromResult(result));
+    }
+    
+    [Authorize]
+    [HttpGet("test")]
+    public async Task<IActionResult> Test()
+    {
+        return Ok(await Task.FromResult("Test endpoint which is authorized"));
     }
 }

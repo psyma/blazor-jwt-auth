@@ -10,17 +10,15 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthenticationStateDeserialization();
 builder.Services.AddBlazoredLocalStorage();
+builder.Services.AddSingleton<JwtAuthStateProvider>();
+builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<JwtAuthStateProvider>());
+builder.Services.AddScoped<AuthHeaderHandler>();
 builder.Services
     .AddHttpClient<IAuthService, AuthService>(client =>
     {
         client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
     })
+    .AddHttpMessageHandler<AuthHeaderHandler>()
     .RemoveAllLoggers();
-builder.Services.AddScoped<JwtAuthStateProvider>();
-builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
-    sp.GetRequiredService<JwtAuthStateProvider>());
-
-builder.Services.AddScoped<AuthHeaderHandler>();
-
 
 await builder.Build().RunAsync();

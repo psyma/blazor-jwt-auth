@@ -1,4 +1,6 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using blazor_jwt_auth.Client.Data;
 using blazor_jwt_auth.Client.Models;
 using Blazored.LocalStorage;
@@ -10,7 +12,7 @@ public class AuthService : IAuthService
     private readonly HttpClient _httpClient;
     private readonly ILocalStorageService _localStorage;
     private readonly JwtAuthStateProvider _authStateProvider;
-    public bool IsInitialized { get; private set; }
+    private bool IsInitialized { get; set; }
     
     public AuthService(
         HttpClient httpClient,
@@ -35,12 +37,14 @@ public class AuthService : IAuthService
 
         var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
 
-        await _localStorage.SetItemAsync("authToken", result!.AccessToken);
-        await _localStorage.SetItemAsync("refreshToken", result.RefreshToken);
-
-        _authStateProvider.NotifyUserAuthentication(result.AccessToken);
-        IsInitialized = true;
-        return true;
+        if (result != null)
+        {
+            _authStateProvider.NotifyUserAuthentication(result.AccessToken);
+            IsInitialized = true;
+            return true;
+        }
+        
+        return false;
     }
 
     public async Task<bool> Register(string email, string password)
@@ -56,48 +60,31 @@ public class AuthService : IAuthService
 
     public async Task<bool> Refresh()
     {
-        var refreshToken = await _localStorage.GetItemAsync<string>("refreshToken");
-
         var response = await _httpClient.PostAsJsonAsync("api/v1/auth/refresh", new
         {
-            RefreshToken = refreshToken
+            RefreshToken = string.Empty
         });
 
         if (!response.IsSuccessStatusCode)
             return false;
 
         var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-
-        await _localStorage.SetItemAsync("authToken", result!.AccessToken);
-        await _localStorage.SetItemAsync("refreshToken", result.RefreshToken);
-
-        _authStateProvider.NotifyUserAuthentication(result.AccessToken);
-        return true;
+            
+        if (result != null)
+        {
+            _authStateProvider.NotifyUserAuthentication(result.AccessToken);
+            return true;
+        }
+        
+        return false;
     }
 
-    public async Task Logout()
+    public async Task Logout(string? email)
     {
-        await _localStorage.RemoveItemAsync("authToken");
-        await _localStorage.RemoveItemAsync("refreshToken");
-
+        await _httpClient.PostAsync($"api/v1/auth/logout?email={email}", null);
+        
         _authStateProvider.NotifyUserLogout();
         IsInitialized = true;
-    }
-    
-    public async Task<bool> TryRestoreSessionAsync()
-    {
-        var token = await _localStorage.GetItemAsync<string>("authToken");
-
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            if (!JwtParser.IsTokenExpired(token))
-            {
-                _authStateProvider.NotifyUserAuthentication(token);
-                return true;
-            }
-        }
-
-        return await Refresh();
     }
     
     public async Task InitializeAsync()
@@ -105,7 +92,14 @@ public class AuthService : IAuthService
         if (IsInitialized)
             return;
 
-        await TryRestoreSessionAsync();
+        await Refresh();
         IsInitialized = true;
+    }
+
+    public async Task<string> Test()
+    {
+        var response = await _httpClient.GetAsync("api/v1/auth/test");
+        
+        return await response.Content.ReadAsStringAsync();
     }
 }

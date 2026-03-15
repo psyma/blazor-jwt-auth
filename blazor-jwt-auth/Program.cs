@@ -89,7 +89,7 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSe
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 // Client
-builder.Services.AddHttpClient<IAuthService, AuthService>().RemoveAllLoggers();
+builder.Services.AddHttpClient<IAuthService, AuthService>().AddHttpMessageHandler<AuthHeaderHandler>().RemoveAllLoggers();
 
 var app = builder.Build();
 
