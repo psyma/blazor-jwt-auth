@@ -1,5 +1,12 @@
-dotnet ef migrations add Initial
+```
+# Migrations
+
+dotnet ef migrations add Initial 
 dotnet ef database update
+```
+
+```
+# appsettings.json
 
 {
   "ConnectionStrings": {
@@ -20,4 +27,4 @@ dotnet ef database update
   },
   "AllowedHosts": "*"
 }
-
+```
