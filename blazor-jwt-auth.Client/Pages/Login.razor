@@ -1,0 +1,20 @@
+﻿@page "/Login"
+@using blazor_jwt_auth.Client.Service
+
+@inject IAuthService AuthService
+
+<PageTitle>Login</PageTitle>
+
+<h1>Login here!</h1>
+
+<button @onclick="HandleClick">click me</button>
+
+@code {
+
+    private async Task HandleClick()
+    {
+        var r = await AuthService.Login("test@test.com", "Test!1234");
+        Console.WriteLine(r);
+    }
+
+}

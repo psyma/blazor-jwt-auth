@@ -1,0 +1,20 @@
+﻿@page "/Register"
+@using blazor_jwt_auth.Client.Service
+
+@inject IAuthService AuthService
+
+<PageTitle>Register</PageTitle>
+
+<h1>Register here</h1>
+
+<button @onclick="HandleClick">click me</button>
+
+@code {
+
+    private async Task HandleClick()
+    {
+        var r = await AuthService.Register("test@test.com", "Test!1234");
+        Console.WriteLine(r);
+    }
+
+}

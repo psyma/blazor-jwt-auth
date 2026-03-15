@@ -1,10 +1,39 @@
-﻿<Router AppAssembly="typeof(Program).Assembly">
-    <Found Context="routeData">
-        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
-            <NotAuthorized>
-                <RedirectToLogin/>
-            </NotAuthorized>
-        </AuthorizeRouteView>
-        <FocusOnNavigate RouteData="routeData" Selector="h1"/>
-    </Found>
-</Router>
+﻿@using blazor_jwt_auth.Client.Service
+@inject IAuthService AuthService
+
+<CascadingAuthenticationState>
+    @if (!_isInitialized)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <Router AppAssembly="typeof(Program).Assembly">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+                    <NotAuthorized>
+                        <RedirectToLogin/>
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="routeData" Selector="h1"/>
+            </Found>
+            <NotFound>
+                <p>Sorry, nothing here.</p>
+            </NotFound>
+        </Router>
+    }
+</CascadingAuthenticationState>
+
+@code {
+    private bool _isInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_isInitialized)
+        {
+            await AuthService.InitializeAsync();
+            _isInitialized = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}
