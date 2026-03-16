@@ -24,12 +24,7 @@ public class AuthController : Controller
     private readonly IJwtTokenService _jwtTokenService;
     private readonly JwtSettings _jwtSettings;
     
-    public AuthController(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager,
-        IJwtTokenService tokenService,
-        IOptions<JwtSettings> jwtSettings)
+    public AuthController(IDbContextFactory<ApplicationDbContext> dbContextFactory, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IJwtTokenService tokenService, IOptions<JwtSettings> jwtSettings)
     {
         _dbContextFactory = dbContextFactory;
         _userManager = userManager;
@@ -39,20 +34,21 @@ public class AuthController : Controller
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginRequest request)
+    public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
     {
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Email == request.Email, cancellationToken);
         if (user == null) return Unauthorized();
-
-        var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, false);
-        if (!result.Succeeded) return Unauthorized();
+        
+        var signInResult = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
+        if (!signInResult.Succeeded) return Unauthorized();
 
         var accessToken = await _jwtTokenService.CreateAccessToken(user);
         var refreshToken = _jwtTokenService.CreateRefreshToken();
         var hashRefreshToken = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
         var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenLifetimeInDays);
 
-        await SetUserRefreshToken(user, hashRefreshToken, refreshTokenExpiry);
+        await SetUserRefreshToken(dbContext, user, hashRefreshToken, refreshTokenExpiry, cancellationToken);
         SeRefreshTokenCookies(refreshToken, refreshTokenExpiry);
 
         return Ok(new AuthResponse
@@ -64,7 +60,7 @@ public class AuthController : Controller
     }
     
     [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterRequest request)
+    public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
     {
         var user = new ApplicationUser
         {
@@ -72,26 +68,31 @@ public class AuthController : Controller
             UserName = request.Email,
             EmailConfirmed = true,
         };
-        
         var result = await _userManager.CreateAsync(user, request.Password);
-        return Ok(result.Succeeded);
+
+        if (!result.Succeeded) return BadRequest(result.Errors);
+        var roleResult = await _userManager.AddToRoleAsync(user, nameof(Roles.User));
+        if (!roleResult.Succeeded) return BadRequest(roleResult.Errors);
+
+        return Ok(true);
     }
     
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh()
+    public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
     {
         Request.Cookies.TryGetValue(_jwtSettings.RefreshCookieName, out var refreshToken);
         if (string.IsNullOrWhiteSpace(refreshToken)) return Unauthorized();
         
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
         var hashRefreshToken = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
-        var user = _userManager.Users.FirstOrDefault(u => u.RefreshToken == hashRefreshToken);
+        var user = await dbContext.Users.FirstOrDefaultAsync(x => x.RefreshToken == hashRefreshToken, cancellationToken);
         if (user == null || user.RefreshTokenExpiryTime <= DateTime.UtcNow) return Unauthorized();
 
         var accessToken = await _jwtTokenService.CreateAccessToken(user);
         var newRefreshToken = _jwtTokenService.CreateRefreshToken();
         var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenLifetimeInDays);
         
-        await SetUserRefreshToken(user, hashRefreshToken, refreshTokenExpiry);
+        await SetUserRefreshToken(dbContext, user, hashRefreshToken, refreshTokenExpiry, cancellationToken);
         SeRefreshTokenCookies(newRefreshToken, refreshTokenExpiry);
 
         return Ok(new AuthResponse
@@ -103,14 +104,16 @@ public class AuthController : Controller
     }
     
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout(string email)
+    public async Task<IActionResult> Logout(string email, CancellationToken cancellationToken)
     {
-        var user = await _userManager.FindByEmailAsync(email);
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
         if (user == null) return Unauthorized();
         
         user.RefreshToken = null;
         user.RefreshTokenExpiryTime = null;
-        await _userManager.UpdateAsync(user);
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
         
         return Ok();
     }
@@ -146,11 +149,12 @@ public class AuthController : Controller
         });
     }
     
-    private async Task SetUserRefreshToken(ApplicationUser user, string refreshToken, DateTime expiry)
+    private static async Task SetUserRefreshToken(ApplicationDbContext dbContext, ApplicationUser user, string refreshToken, DateTime expiry, CancellationToken cancellationToken)
     {
         user.RefreshToken = refreshToken;
         user.RefreshTokenExpiryTime = expiry;
-        
-        await _userManager.UpdateAsync(user);
+
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }
