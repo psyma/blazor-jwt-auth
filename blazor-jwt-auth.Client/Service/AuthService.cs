@@ -3,24 +3,20 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using blazor_jwt_auth.Client.Data;
 using blazor_jwt_auth.Client.Models;
-using Blazored.LocalStorage;
 
 namespace blazor_jwt_auth.Client.Service;
 
 public class AuthService : IAuthService
 {
     private readonly HttpClient _httpClient;
-    private readonly ILocalStorageService _localStorage;
     private readonly JwtAuthStateProvider _authStateProvider;
     private bool IsInitialized { get; set; }
     
     public AuthService(
         HttpClient httpClient,
-        ILocalStorageService localStorage,
         JwtAuthStateProvider authStateProvider)
     {
         _httpClient = httpClient;
-        _localStorage = localStorage;
         _authStateProvider = authStateProvider;
     }
     

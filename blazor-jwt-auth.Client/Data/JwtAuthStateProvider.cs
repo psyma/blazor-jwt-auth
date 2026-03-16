@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
 
 namespace blazor_jwt_auth.Client.Data;

@@ -8,7 +8,6 @@ using blazor_jwt_auth.Components;
 using blazor_jwt_auth.Components.Account;
 using blazor_jwt_auth.Data;
 using blazor_jwt_auth.Models;
-using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore.Diagnostics;
