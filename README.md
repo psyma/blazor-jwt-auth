@@ -12,14 +12,15 @@ dotnet ef database update
   "ConnectionStrings": {
     "DefaultConnection": "Server=0.0.0.0;Port=3306;Database=dbname;User=dbuser;Password=dbpassword;"
   },
-  "Jwt": {
+  "JwtSettings": {
     "Issuer": "http://localhost:5128",
     "Audience": "http://localhost:5128",
-    "Key": "32 characters",
-    "AccessTokenMinutes": 15,
-    "RefreshTokenDays": 30
+    "Secret": "32 characters",
+    "RefreshCookieName": "random cookie name",
+    "AccessTokenLifetimeInMinutes": 15,
+    "RefreshTokenLifetimeInDays": 30
   },
-  "Logging": {
+  Logging": {
     "LogLevel": {
       "Default": "Information",
       "Microsoft.AspNetCore": "Warning"

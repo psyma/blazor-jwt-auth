@@ -10,6 +10,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="MessagePack" Version="3.1.4" />
+        <PackageReference Include="MessagePack.AspNetCoreMvcFormatter" Version="3.1.4" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
         <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.*" />

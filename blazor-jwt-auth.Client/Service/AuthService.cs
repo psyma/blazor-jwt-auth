@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using blazor_jwt_auth.Client.Data;
 using blazor_jwt_auth.Client.Models;
+using MessagePack;
 
 namespace blazor_jwt_auth.Client.Service;
 
@@ -12,9 +13,7 @@ public class AuthService : IAuthService
     private readonly JwtAuthStateProvider _authStateProvider;
     private bool IsInitialized { get; set; }
     
-    public AuthService(
-        HttpClient httpClient,
-        JwtAuthStateProvider authStateProvider)
+    public AuthService(HttpClient httpClient, JwtAuthStateProvider authStateProvider)
     {
         _httpClient = httpClient;
         _authStateProvider = authStateProvider;
@@ -22,57 +21,44 @@ public class AuthService : IAuthService
     
     public async Task<bool> Login(string email, string password)
     {
-        var response = await _httpClient.PostAsJsonAsync("api/v1/auth/login", new
+        var payload = new
         {
             Email = email,
             Password = password
-        });
+        };
+        var response = await _httpClient.PostAsJsonAsync("api/v1/auth/login", payload);
+        if (!response.IsSuccessStatusCode) return false;
 
-        if (!response.IsSuccessStatusCode)
-            return false;
+        var contentStream = await response.Content.ReadAsStreamAsync();
+        var authResponse = await MessagePackSerializer.DeserializeAsync<AuthResponse>(contentStream);
 
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-
-        if (result != null)
-        {
-            _authStateProvider.NotifyUserAuthentication(result.AccessToken);
-            IsInitialized = true;
-            return true;
-        }
-        
-        return false;
+        _authStateProvider.NotifyUserAuthentication(authResponse.AccessToken);
+        IsInitialized = true;
+        return true;
     }
 
     public async Task<bool> Register(string email, string password)
     {
-        var response = await _httpClient.PostAsJsonAsync("api/v1/auth/register", new
+        var payload = new
         {
             Email = email,
             Password = password
-        });
-
+        };
+        var response = await _httpClient.PostAsJsonAsync("api/v1/auth/register", payload);
         return response.IsSuccessStatusCode;
     }
 
     public async Task<bool> Refresh()
     {
-        var response = await _httpClient.PostAsJsonAsync("api/v1/auth/refresh", new
-        {
-            RefreshToken = string.Empty
-        });
-
+        var response = await _httpClient.PostAsJsonAsync("api/v1/auth/refresh", new {});
         if (!response.IsSuccessStatusCode)
             return false;
-
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-            
-        if (result != null)
-        {
-            _authStateProvider.NotifyUserAuthentication(result.AccessToken);
-            return true;
-        }
         
-        return false;
+        var contentStream = await response.Content.ReadAsStreamAsync();
+        var authResponse = await MessagePackSerializer.DeserializeAsync<AuthResponse>(contentStream);
+        
+        _authStateProvider.NotifyUserAuthentication(authResponse.AccessToken);
+        return true;
     }
 
     public async Task Logout(string? email)
@@ -85,8 +71,7 @@ public class AuthService : IAuthService
     
     public async Task InitializeAsync()
     {
-        if (IsInitialized)
-            return;
+        if (IsInitialized) return;
 
         await Refresh();
         IsInitialized = true;

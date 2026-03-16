@@ -15,6 +15,7 @@ namespace blazor_jwt_auth.Controllers.v1;
 
 [ApiController]
 [Route("api/v1/auth")]
+[Produces("application/x-msgpack")]
 public class AuthController : Controller
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;

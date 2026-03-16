@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using blazor_jwt_auth.Client.Data;
 using Microsoft.AspNetCore.Identity;
@@ -8,7 +9,10 @@ using blazor_jwt_auth.Components.Account;
 using blazor_jwt_auth.Data;
 using blazor_jwt_auth.Models;
 using blazor_jwt_auth.Services;
+using MessagePack;
+using MessagePack.AspNetCoreMvcFormatter;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -25,7 +29,11 @@ builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 
 builder.Services.AddOpenApi();
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.InputFormatters.Insert(0, new MessagePackInputFormatter(MessagePackSerializerOptions.Standard));
+    options.OutputFormatters.Insert(0, new MessagePackOutputFormatter(MessagePackSerializerOptions.Standard)); 
+});
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultScheme = IdentityConstants.ApplicationScheme;
@@ -82,6 +90,22 @@ builder.Services.AddAuthentication(options =>
         };
     });
 
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat([
+        "text/plain",
+        "application/json",
+        "application/x-msgpack",
+        "application/octet-stream"
+    ]);
+});
+
+builder.Services.Configure<BrotliCompressionProviderOptions>(options => { options.Level = CompressionLevel.Optimal; });
+builder.Services.Configure<GzipCompressionProviderOptions>(options => { options.Level = CompressionLevel.Optimal; });
+
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -108,6 +132,7 @@ else
     app.UseHsts();
 }
 
+app.UseResponseCompression();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
