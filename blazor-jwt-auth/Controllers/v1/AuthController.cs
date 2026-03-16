@@ -1,13 +1,15 @@
-
-
+using System.Security.Cryptography;
+using System.Text;
 using blazor_jwt_auth.Client.Models;
 using blazor_jwt_auth.Data;
 using blazor_jwt_auth.Models;
+using blazor_jwt_auth.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace blazor_jwt_auth.Controllers.v1;
 
@@ -19,20 +21,20 @@ public class AuthController : Controller
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IJwtTokenService _jwtTokenService;
-    private readonly IConfiguration _configuration;
+    private readonly JwtSettings _jwtSettings;
     
     public AuthController(
         IDbContextFactory<ApplicationDbContext> dbContextFactory,
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IJwtTokenService tokenService,
-        IConfiguration configuration)
+        IOptions<JwtSettings> jwtSettings)
     {
         _dbContextFactory = dbContextFactory;
         _userManager = userManager;
         _signInManager = signInManager;
         _jwtTokenService = tokenService;
-        _configuration = configuration;
+        _jwtSettings = jwtSettings.Value;
     }
 
     [HttpPost("login")]
@@ -46,28 +48,17 @@ public class AuthController : Controller
 
         var accessToken = await _jwtTokenService.CreateAccessToken(user);
         var refreshToken = _jwtTokenService.CreateRefreshToken();
+        var hashRefreshToken = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
+        var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenLifetimeInDays);
 
-        user.RefreshToken = refreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(
-            int.Parse(_configuration["Jwt:RefreshTokenDays"]!));
-
-        await _userManager.UpdateAsync(user);
-
-        // Optional: cookie for web
-        Response.Cookies.Append("refreshToken", refreshToken, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
-            Expires = user.RefreshTokenExpiryTime
-        });
+        await SetUserRefreshToken(user, hashRefreshToken, refreshTokenExpiry);
+        SeRefreshTokenCookies(refreshToken, refreshTokenExpiry);
 
         return Ok(new AuthResponse
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
-            AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(
-                int.Parse(_configuration["Jwt:AccessTokenMinutes"]!))
+            AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenLifetimeInMinutes)
         });
     }
     
@@ -86,43 +77,27 @@ public class AuthController : Controller
     }
     
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh([FromBody] RefreshRequest? request)
+    public async Task<IActionResult> Refresh()
     {
-        var refreshToken = request?.RefreshToken;
+        Request.Cookies.TryGetValue(_jwtSettings.RefreshCookieName, out var refreshToken);
+        if (string.IsNullOrWhiteSpace(refreshToken)) return Unauthorized();
+        
+        var hashRefreshToken = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
+        var user = _userManager.Users.FirstOrDefault(u => u.RefreshToken == hashRefreshToken);
+        if (user == null || user.RefreshTokenExpiryTime <= DateTime.UtcNow) return Unauthorized();
 
-        if (string.IsNullOrWhiteSpace(refreshToken))
-            Request.Cookies.TryGetValue("refreshToken", out refreshToken);
-
-        if (string.IsNullOrWhiteSpace(refreshToken))
-            return Unauthorized();
-
-        var user = _userManager.Users.FirstOrDefault(u => u.RefreshToken == refreshToken);
-        if (user == null || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
-            return Unauthorized();
-
-        var newAccessToken = await _jwtTokenService.CreateAccessToken(user);
+        var accessToken = await _jwtTokenService.CreateAccessToken(user);
         var newRefreshToken = _jwtTokenService.CreateRefreshToken();
-
-        user.RefreshToken = newRefreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(
-            int.Parse(_configuration["Jwt:RefreshTokenDays"]!));
-
-        await _userManager.UpdateAsync(user);
-
-        Response.Cookies.Append("refreshToken", newRefreshToken, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
-            Expires = user.RefreshTokenExpiryTime
-        });
+        var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenLifetimeInDays);
+        
+        await SetUserRefreshToken(user, hashRefreshToken, refreshTokenExpiry);
+        SeRefreshTokenCookies(newRefreshToken, refreshTokenExpiry);
 
         return Ok(new AuthResponse
         {
-            AccessToken = newAccessToken,
+            AccessToken = accessToken,
             RefreshToken = newRefreshToken,
-            AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(
-                int.Parse(_configuration["Jwt:AccessTokenMinutes"]!))
+            AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenLifetimeInMinutes)
         });
     }
     
@@ -156,6 +131,25 @@ public class AuthController : Controller
     [HttpGet("test")]
     public async Task<IActionResult> Test()
     {
-        return Ok(await Task.FromResult("Test endpoint which is authorized"));
+        return Ok(await Task.FromResult("Authorized endpoint successfully fetched"));
+    }
+
+    private void SeRefreshTokenCookies(string refreshToken, DateTime expiry)
+    {
+        Response.Cookies.Append(_jwtSettings.RefreshCookieName, refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            Expires = expiry
+        });
+    }
+    
+    private async Task SetUserRefreshToken(ApplicationUser user, string refreshToken, DateTime expiry)
+    {
+        user.RefreshToken = refreshToken;
+        user.RefreshTokenExpiryTime = expiry;
+        
+        await _userManager.UpdateAsync(user);
     }
 }

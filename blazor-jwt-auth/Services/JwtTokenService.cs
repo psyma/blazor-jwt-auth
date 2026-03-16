@@ -3,19 +3,21 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using blazor_jwt_auth.Data;
+using blazor_jwt_auth.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace blazor_jwt_auth.Models;
+namespace blazor_jwt_auth.Services;
 
 public class JwtTokenService : IJwtTokenService
 {
-    private readonly IConfiguration _configuration;
+    private readonly JwtSettings _jwtSettings;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public JwtTokenService(IConfiguration configuration, UserManager<ApplicationUser> userManager)
+    public JwtTokenService(IOptions<JwtSettings> jwtSettings, UserManager<ApplicationUser> userManager)
     {
-        _configuration = configuration;
+        _jwtSettings = jwtSettings.Value;
         _userManager = userManager;
     }
     
@@ -31,17 +33,12 @@ public class JwtTokenService : IJwtTokenService
         var roles = await _userManager.GetRolesAsync(user);
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
-
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var expires = DateTime.UtcNow.AddMinutes(
-            int.Parse(_configuration["Jwt:AccessTokenMinutes"]!));
-
+        var expires = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenLifetimeInMinutes);
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience,
             claims: claims,
             expires: expires,
             signingCredentials: credentials);
