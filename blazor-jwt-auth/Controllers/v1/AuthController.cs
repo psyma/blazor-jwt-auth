@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using blazor_jwt_auth.Client.Models;
 using blazor_jwt_auth.Data;
+using blazor_jwt_auth.Email;
 using blazor_jwt_auth.Models;
 using blazor_jwt_auth.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -19,17 +20,25 @@ namespace blazor_jwt_auth.Controllers.v1;
 public class AuthController : Controller
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
+    private readonly IJwtTokenService _jwtTokenService;
+    private readonly ICustomEmailSender<ApplicationUser> _emailSender;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly IJwtTokenService _jwtTokenService;
     private readonly JwtSettings _jwtSettings;
     
-    public AuthController(IDbContextFactory<ApplicationDbContext> dbContextFactory, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IJwtTokenService tokenService, IOptions<JwtSettings> jwtSettings)
+    public AuthController(
+        IDbContextFactory<ApplicationDbContext> dbContextFactory, 
+        IJwtTokenService tokenService, 
+        ICustomEmailSender<ApplicationUser> emailSender,
+        UserManager<ApplicationUser> userManager, 
+        SignInManager<ApplicationUser> signInManager, 
+        IOptions<JwtSettings> jwtSettings)
     {
         _dbContextFactory = dbContextFactory;
+        _jwtTokenService = tokenService;
+        _emailSender = emailSender;
         _userManager = userManager;
         _signInManager = signInManager;
-        _jwtTokenService = tokenService;
         _jwtSettings = jwtSettings.Value;
     }
 

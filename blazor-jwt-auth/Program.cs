@@ -7,6 +7,7 @@ using blazor_jwt_auth.Client.Service;
 using blazor_jwt_auth.Components;
 using blazor_jwt_auth.Components.Account;
 using blazor_jwt_auth.Data;
+using blazor_jwt_auth.Email;
 using blazor_jwt_auth.Models;
 using blazor_jwt_auth.Services;
 using MessagePack;
@@ -60,11 +61,15 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
         options.Password.RequireDigit = true;
         options.Password.RequireUppercase = true;
         options.SignIn.RequireConfirmedEmail = true;
+        options.Tokens.ProviderMap.Add("CustomEmail", new TokenProviderDescriptor(typeof(CustomEmailTokenProvider<ApplicationUser>)));
+        options.Tokens.EmailConfirmationTokenProvider = "CustomEmail";
     })
     .AddRoles<IdentityRole<int>>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
+builder.Services.AddTransient<CustomEmailTokenProvider<ApplicationUser>>();
+builder.Services.AddSingleton<ICustomEmailSender<ApplicationUser>, CustomEmailSender>();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? throw new InvalidOperationException("Jwt settings not found.");
 
@@ -106,11 +111,10 @@ builder.Services.AddResponseCompression(options =>
 builder.Services.Configure<BrotliCompressionProviderOptions>(options => { options.Level = CompressionLevel.Optimal; });
 builder.Services.Configure<GzipCompressionProviderOptions>(options => { options.Level = CompressionLevel.Optimal; });
 
-builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
-
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings")); 
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 
 // Client
 builder.Services.AddHttpClient<IAuthService, AuthService>().AddHttpMessageHandler<AuthHeaderHandler>().RemoveAllLoggers();

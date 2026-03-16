@@ -10,6 +10,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="MailKit" Version="4.15.1" />
         <PackageReference Include="MessagePack" Version="3.1.4" />
         <PackageReference Include="MessagePack.AspNetCoreMvcFormatter" Version="3.1.4" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />

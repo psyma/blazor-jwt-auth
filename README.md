@@ -20,6 +20,12 @@ dotnet ef database update
     "AccessTokenLifetimeInMinutes": 15,
     "RefreshTokenLifetimeInDays": 30
   },
+  "EmailSettings": {
+    "Host": "",
+    "Port": 465,
+    "Username": "",
+    "Password": ""
+  },
   Logging": {
     "LogLevel": {
       "Default": "Information",
