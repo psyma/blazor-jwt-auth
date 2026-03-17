@@ -10,6 +10,7 @@
 
 <button @onclick="HandleClick">click me</button>
 <button @onclick="HandleGoogleLogin" DropShadow="false" name="provider" value="Google">Sign in with Google</button>
+<button @onclick="HandleGithubLogin" DropShadow="false" name="provider" value="Github">Sign in with Github</button>
 @code {
 
     private async Task HandleClick()
@@ -21,5 +22,10 @@
     private async Task HandleGoogleLogin()
     {
         NavigationManager.NavigateTo("api/v1/auth/external/login?provider=Google", true);
+    }
+    
+    private async Task HandleGithubLogin()
+    {
+        NavigationManager.NavigateTo("api/v1/auth/external/login?provider=Github", true);
     }
 }

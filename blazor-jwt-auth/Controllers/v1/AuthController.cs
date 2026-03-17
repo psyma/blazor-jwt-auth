@@ -133,13 +133,22 @@ public class AuthController : Controller
     {
         var info = await _signInManager.GetExternalLoginInfoAsync();
         if (info == null) return BadRequest("External login failed.");
-        
+      
         var email = info.Principal.FindFirstValue(ClaimTypes.Email);
         if (string.IsNullOrEmpty(email)) return BadRequest("Email not found.");
+
+        var avatar = string.Empty;
+        var name = info.Principal.FindFirstValue(ClaimTypes.Name);
+
+        var provider = info.ProviderDisplayName;
+        if (!string.IsNullOrEmpty(provider))
+        {
+            provider = provider.ToLowerInvariant();
+            if (provider.Contains("google")) avatar = info.Principal.FindFirstValue("picture");
+            else if (provider.Contains("github")) avatar = info.Principal.FindFirstValue("urn:github:avatar");
+        }
         
-        var name  = info.Principal.FindFirstValue(ClaimTypes.Name);
-        var picture = info.Principal.FindFirstValue("picture");
-        Console.WriteLine($"{name} {picture}");
+        Console.WriteLine($"{email} {name} {avatar}");
         
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null)

@@ -1,5 +1,8 @@
 using System.IO.Compression;
+using System.Net.Http.Headers;
+using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using blazor_jwt_auth.Client.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -76,11 +79,13 @@ builder.Services.AddSingleton<ICustomEmailSender<ApplicationUser>, CustomEmailSe
 
 var googleSettings = builder.Configuration.GetSection("GoogleSettings").Get<GoogleSettings>() ?? throw new InvalidOperationException("Google settings not found.");
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? throw new InvalidOperationException("Jwt settings not found.");
+var githubSettings = builder.Configuration.GetSection("GithubSettings").Get<GithubSettings>() ?? throw new InvalidOperationException("Github settings not found.");
+
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
         options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+        options.DefaultSignInScheme = JwtBearerDefaults.AuthenticationScheme;
         options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
     })
     .AddCookie(IdentityConstants.ExternalScheme, options =>
@@ -98,6 +103,38 @@ builder.Services.AddAuthentication(options =>
         options.Scope.Add("email");
         options.ClaimActions.MapJsonKey("picture", "picture", "url");
         options.SignInScheme = IdentityConstants.ExternalScheme;
+    })
+    .AddOAuth("Github", "Github", options =>
+    {
+        options.ClientId = githubSettings.Id;
+        options.ClientSecret = githubSettings.Secret;
+        options.CallbackPath = githubSettings.CallbackPath;
+        options.AuthorizationEndpoint = githubSettings.AuthorizationEndpoint;
+        options.TokenEndpoint = githubSettings.TokenEndpoint;
+        options.UserInformationEndpoint = githubSettings.UserInformationEndpoint;
+        options.SaveTokens = true;
+        options.SignInScheme = IdentityConstants.ExternalScheme;
+        
+        options.ClaimActions.MapJsonKey(ClaimTypes.NameIdentifier, "id");
+        options.ClaimActions.MapJsonKey(ClaimTypes.Name, "name");
+        options.ClaimActions.MapJsonKey(ClaimTypes.Email, "email"); 
+        options.ClaimActions.MapJsonKey("urn:github:name", "name");
+        options.ClaimActions.MapJsonKey("urn:github:avatar", "avatar_url");
+        
+        options.Events.OnCreatingTicket = async context =>
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, context.Options.UserInformationEndpoint);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", context.AccessToken);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Amicanem", "1.0"));
+
+            var response = await context.Backchannel.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var user = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+            context.RunClaimActions(user.RootElement);
+        };
     })
     .AddJwtBearer(options =>
     {

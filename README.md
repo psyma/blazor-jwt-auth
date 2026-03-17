@@ -35,7 +35,16 @@ dotnet ef database update
   "GoogleSettings": {
     "Id": "",
     "Secret": "",
-    "CallbackPath": ""
+    "CallbackPath": "",
+    "CookieName": ""
+  },
+  "GithubSettings": {
+    "Id": "",
+    "Secret": "",
+    "CallbackPath": "",
+    "AuthorizationEndpoint": "https://github.com/login/oauth/authorize",
+    "TokenEndpoint": "https://github.com/login/oauth/access_token",
+    "UserInformationEndpoint": "https://api.github.com/user"
   },
   Logging": {
     "LogLevel": {
