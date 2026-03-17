@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using blazor_jwt_auth.Client.Models;
@@ -5,6 +6,7 @@ using blazor_jwt_auth.Data;
 using blazor_jwt_auth.Email;
 using blazor_jwt_auth.Models;
 using blazor_jwt_auth.Services;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Data;
@@ -53,12 +55,11 @@ public class AuthController : Controller
         if (!signInResult.Succeeded) return Unauthorized();
 
         var accessToken = await _jwtTokenService.CreateAccessToken(user);
-        var refreshToken = _jwtTokenService.CreateRefreshToken();
-        var hashRefreshToken = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
+        var refreshToken = _jwtTokenService.CreateRefreshToken(); 
         var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenLifetimeInDays);
-
-        await SetUserRefreshToken(dbContext, user, hashRefreshToken, refreshTokenExpiry, cancellationToken);
-        SeRefreshTokenCookies(refreshToken, refreshTokenExpiry);
+        
+        await SetUserRefreshToken(dbContext, user, refreshToken, refreshTokenExpiry, cancellationToken);
+        SetRefreshTokenCookies(refreshToken, refreshTokenExpiry);
 
         return Ok(new AuthResponse
         {
@@ -101,8 +102,8 @@ public class AuthController : Controller
         var newRefreshToken = _jwtTokenService.CreateRefreshToken();
         var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenLifetimeInDays);
         
-        await SetUserRefreshToken(dbContext, user, hashRefreshToken, refreshTokenExpiry, cancellationToken);
-        SeRefreshTokenCookies(newRefreshToken, refreshTokenExpiry);
+        await SetUserRefreshToken(dbContext, user, newRefreshToken, refreshTokenExpiry, cancellationToken);
+        SetRefreshTokenCookies(newRefreshToken, refreshTokenExpiry);
 
         return Ok(new AuthResponse
         {
@@ -126,6 +127,55 @@ public class AuthController : Controller
         
         return Ok();
     }
+
+    [HttpGet("external/callback")]
+    public async Task<IActionResult> ExternalLoginCallback(CancellationToken cancellationToken)
+    {
+        var info = await _signInManager.GetExternalLoginInfoAsync();
+        if (info == null) return BadRequest("External login failed.");
+        
+        var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+        if (string.IsNullOrEmpty(email)) return BadRequest("Email not found.");
+        
+        var name  = info.Principal.FindFirstValue(ClaimTypes.Name);
+        var picture = info.Principal.FindFirstValue("picture");
+        Console.WriteLine($"{name} {picture}");
+        
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user == null)
+        {
+            user = new ApplicationUser
+            {
+                Email = email,
+                UserName = email,
+                EmailConfirmed = true,
+            };
+            var result = await _userManager.CreateAsync(user, "Test!1234");
+
+            if (!result.Succeeded) return BadRequest(result.Errors);
+            var roleResult = await _userManager.AddToRoleAsync(user, nameof(Roles.User));
+            if (!roleResult.Succeeded) return BadRequest(roleResult.Errors);
+        }
+        
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var accessToken = await _jwtTokenService.CreateAccessToken(user);
+        var refreshToken = _jwtTokenService.CreateRefreshToken();
+        var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenLifetimeInDays);
+
+        await SetUserRefreshToken(dbContext, user, refreshToken, refreshTokenExpiry, cancellationToken);
+        SetRefreshTokenCookies(refreshToken, refreshTokenExpiry);
+    
+        return Redirect($"/external/callback/{accessToken}");
+    }
+    
+    [HttpGet("external/login")]
+    public IActionResult ExternalLogin([FromQuery] string provider = GoogleDefaults.AuthenticationScheme)
+    {
+        var redirectUrl = Url.Action(nameof(ExternalLoginCallback), "Auth", null, Request.Scheme)!;
+        var properties = _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+
+        return Challenge(properties, provider);
+    }
     
     [Authorize]
     [HttpGet("me")]
@@ -147,7 +197,7 @@ public class AuthController : Controller
         return Ok(await Task.FromResult("Authorized endpoint successfully fetched"));
     }
 
-    private void SeRefreshTokenCookies(string refreshToken, DateTime expiry)
+    private void SetRefreshTokenCookies(string refreshToken, DateTime expiry)
     {
         Response.Cookies.Append(_jwtSettings.RefreshCookieName, refreshToken, new CookieOptions
         {
@@ -160,7 +210,7 @@ public class AuthController : Controller
     
     private static async Task SetUserRefreshToken(ApplicationDbContext dbContext, ApplicationUser user, string refreshToken, DateTime expiry, CancellationToken cancellationToken)
     {
-        user.RefreshToken = refreshToken;
+        user.RefreshToken = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
         user.RefreshTokenExpiryTime = expiry;
 
         dbContext.Users.Update(user);

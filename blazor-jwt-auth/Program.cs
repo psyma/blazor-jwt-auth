@@ -12,6 +12,7 @@ using blazor_jwt_auth.Models;
 using blazor_jwt_auth.Services;
 using MessagePack;
 using MessagePack.AspNetCoreMvcFormatter;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -35,12 +36,14 @@ builder.Services.AddControllers(options =>
     options.InputFormatters.Insert(0, new MessagePackInputFormatter(MessagePackSerializerOptions.Standard));
     options.OutputFormatters.Insert(0, new MessagePackOutputFormatter(MessagePackSerializerOptions.Standard)); 
 });
-builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultScheme = IdentityConstants.ApplicationScheme;
-        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-    })
-    .AddIdentityCookies();
+
+//builder.Services.AddAuthentication(options =>
+//    {
+//        options.DefaultScheme = IdentityConstants.ApplicationScheme;
+//        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+//    })
+//    
+//    .AddIdentityCookies();
 builder.Services.AddAuthorization();
 
 builder.Services.AddPooledDbContextFactory<ApplicationDbContext>(options =>
@@ -71,14 +74,30 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 builder.Services.AddTransient<CustomEmailTokenProvider<ApplicationUser>>();
 builder.Services.AddSingleton<ICustomEmailSender<ApplicationUser>, CustomEmailSender>();
 
+var googleSettings = builder.Configuration.GetSection("GoogleSettings").Get<GoogleSettings>() ?? throw new InvalidOperationException("Google settings not found.");
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? throw new InvalidOperationException("Jwt settings not found.");
-
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
         options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultSignInScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
         options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddCookie(IdentityConstants.ExternalScheme, options =>
+    {
+        options.Cookie.Name = googleSettings.CookieName;
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+        options.SlidingExpiration = false;
+    })
+    .AddGoogle(options =>
+    {
+        options.ClientId = googleSettings.Id;
+        options.ClientSecret = googleSettings.Secret;
+        options.CallbackPath = googleSettings.CallbackPath;
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+        options.ClaimActions.MapJsonKey("picture", "picture", "url");
+        options.SignInScheme = IdentityConstants.ExternalScheme;
     })
     .AddJwtBearer(options =>
     {

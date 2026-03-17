@@ -1,0 +1,18 @@
+﻿@page "/external/callback/{Token}" 
+@using blazor_jwt_auth.Client.Service
+
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager 
+<PageTitle>Auth</PageTitle> 
+
+<p>External callback</p>
+
+@code {
+    [Parameter] public required string Token { get; set; }
+    
+    protected override void OnInitialized()
+    {
+        AuthService.ExternalLogin(Token);
+        NavigationManager.NavigateTo("/", false);
+    }
+}

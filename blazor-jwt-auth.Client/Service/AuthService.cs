@@ -60,7 +60,7 @@ public class AuthService : IAuthService
         _authStateProvider.NotifyUserAuthentication(authResponse.AccessToken);
         return true;
     }
-
+    
     public async Task Logout(string? email)
     {
         await _httpClient.PostAsync($"api/v1/auth/logout?email={email}", null);
@@ -82,5 +82,11 @@ public class AuthService : IAuthService
         var response = await _httpClient.GetAsync("api/v1/auth/test");
         
         return await response.Content.ReadAsStringAsync();
+    }
+    
+    public void ExternalLogin(string accessToken)
+    {
+        _authStateProvider.NotifyUserAuthentication(accessToken);
+        IsInitialized = true;
     }
 }

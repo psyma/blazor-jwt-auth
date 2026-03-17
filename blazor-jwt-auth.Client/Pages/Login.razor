@@ -2,19 +2,24 @@
 @using blazor_jwt_auth.Client.Service
 
 @inject IAuthService AuthService
+@inject NavigationManager NavigationManager
 
 <PageTitle>Login</PageTitle>
 
 <h1>Login here!</h1>
 
 <button @onclick="HandleClick">click me</button>
-
+<button @onclick="HandleGoogleLogin" DropShadow="false" name="provider" value="Google">Sign in with Google</button>
 @code {
 
     private async Task HandleClick()
     {
-        var r = await AuthService.Login("test@test.com", "Test!1234");
+        var r = await AuthService.Login("psyma001@gmail.com", "Test!1234");
         Console.WriteLine(r);
     }
 
+    private async Task HandleGoogleLogin()
+    {
+        NavigationManager.NavigateTo("api/v1/auth/external/login?provider=Google", true);
+    }
 }

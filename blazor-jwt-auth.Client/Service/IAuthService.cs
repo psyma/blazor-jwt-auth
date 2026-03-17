@@ -8,4 +8,5 @@ public interface IAuthService
     Task Logout(string? email);
     Task InitializeAsync();
     Task<string> Test();
+    void ExternalLogin(string accessToken);
 }

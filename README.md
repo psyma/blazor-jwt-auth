@@ -1,4 +1,10 @@
 ```
+# Database
+
+MySql
+```
+
+```
 # Migrations
 
 dotnet ef migrations add Initial 
@@ -25,6 +31,11 @@ dotnet ef database update
     "Port": 465,
     "Username": "",
     "Password": ""
+  },
+  "GoogleSettings": {
+    "Id": "",
+    "Secret": "",
+    "CallbackPath": ""
   },
   Logging": {
     "LogLevel": {
