@@ -12,8 +12,7 @@ public class JwtAuthStateProvider : AuthenticationStateProvider
     
     public override Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        if (_user == null) return Task.FromResult(new AuthenticationState(Anonymous));
-        return Task.FromResult(new AuthenticationState(_user));
+        return Task.FromResult(_user == null ? new AuthenticationState(Anonymous) : new AuthenticationState(_user));
     }
     
     public void NotifyUserAuthentication(string token)

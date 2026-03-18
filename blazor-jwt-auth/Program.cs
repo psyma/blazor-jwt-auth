@@ -174,6 +174,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 
 // Client
 builder.Services.AddHttpClient<IAuthService, AuthService>().AddHttpMessageHandler<AuthHeaderHandler>().RemoveAllLoggers();
+builder.Services.AddHttpClient("RefreshClient").RemoveAllLoggers();
 
 var app = builder.Build();
 
